@@ -1,0 +1,166 @@
+************************************
+*** QUICK README and USAGE GUIDE ***
+************************************
+
+1. OVERVIEW
+NWTPI is the Native Window Toolkit C++ API designed for the Raspberry Pi (tm).
+This API allow C++ programers to access to the native Pi video board (headless) directly from OpenGL/ES and C++ code,
+meaning whithout having to deal with the low level C Dispmanx API and EGL.
+
+NWTPI was evolved in order to get a simple API like the one done for Java through JOGL::NEWT.
+
+In this small guide, you'll find out some tips ; 
+please read carefully example source code in order to understand the whole mess.
+
+
+* - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - 
+FOREWORD 
+
+NWTPI is in an active development stage ; sometimes, i forgot to update this guide. 
+Generally, i put the release version number - like (R22) - as a reference to identify a new and fresh class or
+functionality.
+If you find a release number that is too low from the current one, don't worry, readmeFile tips will come later.
+If you find errors or something weird, google code is for you : open an issue.
+
+You'll find NWTPI class diagrams and overview at vslash.com and NWTPI code.google project home.
+* - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - 
+
+
+2. OS and compiler requirement 
+$ uname -a 
+	Linux raspberrypi 3.6.11+ #371 PREEMPT Thu Feb 7 16:31:35 GMT 2013 armv6l GNU/Linux
+	
+	ie Raspbian 3.6.11
+
+$ gcc --version
+gcc (Debian 4.6.3-14+rpi1) 4.6.3
+
+	==> !! Don't ask me anything if your RPi Linux version is not 3.6.11 or above (vchiq issue ..) !!
+
+2. NWTPI package Overview
+	NWTPI::EGLWindow (R33) create a NWTPI::NativeWindow (R33), then create an eglContext from NWTPI::EGLCapabilities (R25) 
+	Then, surface rendering can be pull from back to front calling EGLWindow::swapBuffers.
+	Currently, NWTPI manage only eglWindowSurfaces.  
+	
+	Sequence call must be : 
+	EGLCapabilities : manage your surface attributes preferences (like rgb bitsize, depth, alpha and so on). 
+	ELGWindow : create a configuration and context from your capabilities, then create a drawing surface from this configuration.
+	EGLWindow::swapBuffers() : swap your rendering buffer.
+	
+	See the provided example "testtriangle.cpp" for more details. 
+
+3. OGLCapabilities usage : capabilities and alpha surface window (R19)
+	Overview - Context and Config Attributes in one single class.
+	Because NWTPI is a Raspberry Pi dedicated API, we use a single class in order to define both context & config attributes.
+	This mean here we will use the same eglContextAttributes for any surfaces created later, ie many OEGLCapabilities objects will
+	share the same ContextAttributes.
+	( but NWTPI will offer a way to create different configuration for surfaces later defined).
+	Keep in mind that EGLContext, as specified by Khronos, define the state machine to be used on our board, ie in our case, OpenGLES2.
+	Because our Raspberry Pi don't support OpenVG, we don't need to define different rendering context.
+	In simple words :
+	- every capabilitie defines a single rendering context attributes being the same for all.
+	- one configuration will use one capability.
+	- a configuration attributes will define properties to be associated to a specific surface. 
+	- a surface has one configuration.
+	- many surfaces could have the same configuration, OR use different configuration.
+	 
+3.1 OpenGL offer 2 level of transparency : 
+- surface transparency : when creating a surface window.
+- color buffer transparency : when using program shader
+
+3.1.1 Surface transparency : to apply to the background alpha level.
+    NWTPI set surface transparency during native window creation, eg :
+	unsigned char alphaLevel = 255;		// window background totally transparent.
+	... NWTPI("MySurface",width,height,alphaLevel,caps);
+	...
+	and then using : 
+	... glClearColor(0.2f, 0.3f, 0.4f, 0.9f);
+	glClear( ..
+	
+	==> whatever 'caps' you use (RGB or RGBA), when calling NWTPI constructor, in the example above, 
+	    background will be set to a 0.9 alpha transparency ; this is possible because our window has an alpha level > 0. 
+	    so, here, you will see here your console through your native window at 0.9 transparency level.
+	
+3.1.2 Color buffer transparency : to apply to the fragment shader.
+    NWTPI set color buffer transparency during capabilities profile choice, eg :  
+	OEGLCapabilities(EGLCapabilities::RGBA888); // here we are using RGBA, ie RGB + 8bits alpha layer)
+	...
+	Then programming your shader like :
+		void main() { gl_FragColor = vec4 (1.0, 1.0, 1.0, 0.5); }
+	
+	==> will colorize your object in whyte with a 0.5 alpha transparency through your entire surface, whatever alpha was set to your background
+		(but still != 0). (in the publishing and printing world, we call it a "knockout" surface).
+
+3.2 OEGLCapabilities::setAttribute(...) 
+	Method don't check over EGL compliance. So, you're responsible to put the right value to the right place.
+	setAttribute() add automatically EGL_NONE as expected by EGL at the end of its private attributes[], so don't add it.
+	
+3.3 OEGLCapabilities::getConfigAttributes()
+	getConfigAttributes() return expected pointer to attributes array.
+	When things don't work, remember to check selection criteria, sort order and sort priority on EGLConfig attributes as 
+	specified by Khronos (see eglspecs-1.4).
+
+3.4 OEGLCapabilities::getContextAttributes()
+	Their is no choice here, Raspberry Pi context being 'embedded' ; so method return a const array[] with right values. 	
+
+4. OEGLWindow use case : (R33)
+4.1 your OpenGL scene implement a drawing method that call our surfaceWindow swapBuffers method :
+	
+	OEGLWindow * window = new OEGLWindow("MyDrawable",width,height,alphaLevel,capabilities);
+	MyGlObject * Triangle = new MyGlObject(windowSurface);
+
+	Triangle->drawScene();
+	
+	//	your drawscene() methode including :
+	// a call to glDrawElements or glDrawArray
+	// and thena call to drawable->swapBuffers();											
+	
+4.2 your OpenGL scene won't to deal with FBO management : 
+	OEGLWindow * window = new OEGLWindow("MyDrawable",width,height,alphaLevel,capabilities);
+	MyGlObject * Triangle = new MyGlObject();
+
+	Triangle->drawScene(); 	// drawScene() simply call glDrawElements() or glDrawArray()
+	
+	window->swapBuffers(); // swapBuffers() is then called from our main loop.
+
+Annexe
+Dispmanx : some tips (R1)
+If you prefer to use dispmanx API, most important things are here :
+	- after a call to bcm_host_init(), dispmanx sequence must be : 
+		displayOpen
+		updateStart
+		elementAdd
+		updateSync	==> validate element above.
+
+		.. from which you get an 'element' to pass to EGL through egCreateWindowSurface.
+		Once your EGL context is created, EGLDisplay and EGLSurface will be used to draw your scene,
+		ie swap your frame buffer.
+		
+		!! Important point here : EGLDisplay and EGLSurface types actually are (void *) pointers ;
+		these pointers are updated, so you cannot passed them by value, do something, and then use them.
+		For example, inside your GLES2 program, you could code : 
+		object::drawScene() {
+			EGLDisplay myEgDisplay;
+			EGLSurface myEgSurface;
+			...
+			GLES2 Calls ... drawScene ...
+			...
+			eglSwapBuffers(myEgDisplay,myEgSurface);
+		}
+
+		==> !! will not work !! (void *) myEgDisplay and myEgSurface are loosed.
+		
+		The right way is to call eglSwapBuffers like this :
+			eglSwapBuffers(eglGetCurrentDisplay(), eglGetCurrentSurface());
+
+		NWTPI::swapBuffers() ensure these pointers are good ones.
+
+	Feel free to go into NWTPI in order to understand the whole mess.
+
+
+AUTHORS                                 
+Valéry Seys, vslash.com - 2013 | Paris /\
+
+
+REFERENCES :
+Khronos Group 	: eglspecs-1.4.pdf

@@ -1,0 +1,16 @@
+#Thu Mar 28 02:27:14 CET 2013
+eclipse.preferences.version=1
+environment/project/cdt.managedbuild.toolchain.gnu.base.454563816/append=true
+environment/project/cdt.managedbuild.toolchain.gnu.base.454563816/appendContributed=false
+indexer/filesToParseUpFront=stdarg.h, stddef.h, sys/types.h
+indexer/indexAllFiles=false
+indexer/indexOnOpen=false
+indexer/indexUnusedHeadersWithAlternateLang=false
+indexer/indexUnusedHeadersWithDefaultLang=false
+indexer/indexerId=org.eclipse.ptp.rdt.core.RemoteFastIndexer
+indexer/skipFilesLargerThanMB=8
+indexer/skipImplicitReferences=false
+indexer/skipMacroReferences=false
+indexer/skipReferences=false
+indexer/skipTypeReferences=false
+indexer/useHeuristicIncludeResolution=true
